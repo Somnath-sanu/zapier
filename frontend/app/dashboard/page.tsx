@@ -6,11 +6,13 @@ import axios from "axios";
 import { useEffect, useState } from "react";
 import { BACKEND_URL, HOOKS_URL } from "../config";
 import { LinkButtton } from "@/components/buttons/LinkButtton";
-import { useRouter } from "next/navigation";
+import {  useRouter } from "next/navigation";
+import { PrimaryButton } from "@/components/buttons/PrimaryButton";
 
 interface Zap {
   id: string;
   triggerId: string;
+  createdAt: Date;
   userId: number;
   actions: {
     id: string;
@@ -30,7 +32,7 @@ interface Zap {
     type: {
       id: string;
       name: string;
-      image: string
+      image: string;
     };
   };
 }
@@ -38,6 +40,9 @@ interface Zap {
 function useZaps() {
   const [loading, setLoading] = useState(false);
   const [zaps, setZaps] = useState([]);
+
+  
+  
 
   useEffect(() => {
     async function main() {
@@ -62,17 +67,28 @@ function useZaps() {
 
 export default function Page() {
   const { loading, zaps } = useZaps();
+
   const router = useRouter();
   return (
     <div className="flex justify-center">
       <div className="pt-8 max-w-screen-lg w-full">
         <div className="flex justify-between pr-8">
           <div className="text-2xl font-bold">My Zaps</div>
-          <DarkButton onClick={() => {
-            router.push("/zap/create")
-          }}>Create</DarkButton>
+          <DarkButton
+            onClick={() => {
+              router.push("/zap/create");
+            }}
+          >
+            Create
+          </DarkButton>
         </div>
-        {loading ? "Loading..." : <div className="flex justify-center"><ZapTable zaps={zaps} /></div>}
+        {loading ? (
+          "Loading..."
+        ) : (
+          <div className="flex justify-center">
+            <ZapTable zaps={zaps} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -80,6 +96,25 @@ export default function Page() {
 
 function ZapTable({ zaps }: { zaps: Zap[] }) {
   const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [localZaps, setLocalZaps] = useState(zaps);
+  const handleDelete = async (id: string) => {
+    setPending(true);
+    try {
+      await axios.delete(`${BACKEND_URL}/api/v1/zap/${id}`, {
+        headers: {
+          Authorization: localStorage.getItem("token"),
+        },
+      });
+
+      setLocalZaps(localZaps.filter((zap) => zap.id !== id));
+    } catch (error) {
+      console.error("Failed to delete zap:", error);
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <div className="mt-4 p-8 max-w-screen-lg w-full">
       <div className="flex pb-2">
@@ -90,15 +125,26 @@ function ZapTable({ zaps }: { zaps: Zap[] }) {
         <div className="flex-1">Go</div>
       </div>
 
-      {zaps.map((z) => (
+      {localZaps.map((z) => (
         <div key={z.id} className="flex border-b py-4 border-t">
           <div className="flex-1 flex items-center justify-start">
-            <img src={z.trigger.type.image} alt=""  className="" width={30}/> {z.actions.map((x) => <img src={x.type.image} alt="" width={30} key={z.id} />)}
+            <img src={z.trigger.type.image} alt="" className="" width={30} />{" "}
+            {z.actions.map((x, idx) => (
+              <img src={x.type.image} alt="" width={30} key={idx} className="pr-0.5" />
+            ))}
           </div>
           <div className="flex-1">{z.id}</div>
-          <div className="flex-1">Nov 13, 2033</div>
+          <div className="flex-1 px-3 text-wrap truncate">
+            {new Intl.DateTimeFormat("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            }).format(new Date(z.createdAt))}
+          </div>
           <div className="flex-1">{`${HOOKS_URL}/hooks/catch/1/${z.id}`}</div>
-          <div className="flex-1">
+          <div className="flex-1 flex flex-col justify-center items-center">
             <LinkButtton
               onClick={() => {
                 router.push("/zap/" + z.id);
@@ -106,6 +152,10 @@ function ZapTable({ zaps }: { zaps: Zap[] }) {
             >
               Go
             </LinkButtton>
+            <PrimaryButton onClick={() => handleDelete(z.id)} pending={pending}>
+              {" "}
+              Delete{" "}
+            </PrimaryButton>
           </div>
         </div>
       ))}

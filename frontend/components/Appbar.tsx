@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { LinkButtton } from "./buttons/LinkButtton";
 import { PrimaryButton } from "./buttons/PrimaryButton";
 import { useEffect, useState } from "react";
@@ -15,6 +15,18 @@ export const Appbar = () => {
       setVerified(true);
     }
   }, []);
+
+  const path = usePathname();
+
+  const [verifiedRedirect, setVerifiedRedirect] = useState("");
+
+  useEffect(() => {
+    if (path === "/dashboard") {
+      setVerifiedRedirect("/");
+    } else {
+      setVerifiedRedirect("/dashboard");
+    }
+  }, [path]);
   return (
     <div className="flex border-b justify-between p-3">
       <div className="flex justify-center items-center gap-4">
@@ -39,6 +51,11 @@ export const Appbar = () => {
               Sign up
             </PrimaryButton>
           </>
+        )}
+        {verified && (
+          <PrimaryButton onClick={() => router.push(verifiedRedirect)}>
+            {verifiedRedirect === "/" ? "Go to home" : "Dashboard"}
+          </PrimaryButton>
         )}
       </div>
     </div>

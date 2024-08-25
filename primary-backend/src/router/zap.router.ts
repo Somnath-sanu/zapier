@@ -7,15 +7,13 @@ const router = Router();
 
 router.post("/", authMiddleware, async (req, res) => {
   //@ts-ignore
- 
-  
+
   const id = req.id;
- 
+
   const body = req.body;
   const parsedData = ZapCreateSchema.safeParse(body);
 
   // console.log(parsedData.error?.message);
-  
 
   if (!parsedData.success) {
     return res.status(411).json({
@@ -33,6 +31,7 @@ router.post("/", authMiddleware, async (req, res) => {
             create: parsedData.data.actions.map((x, index) => ({
               actionId: x.availableActionId,
               sortingOrder: index,
+              metadata: x.actionMetadata,
             })),
           },
         },
@@ -72,7 +71,9 @@ router.get("/", authMiddleware, async (req, res) => {
     where: {
       userId: id,
     },
-    include: {
+    select: {
+      createdAt: true,
+      id: true,
       actions: {
         include: {
           type: true,
@@ -84,12 +85,21 @@ router.get("/", authMiddleware, async (req, res) => {
         },
       },
     },
+    orderBy: {
+      createdAt: "desc",
+    },
   });
 
   return res.json({
     zaps,
   });
 });
+
+/**
+ * Use include to fetch related models with all fields.
+  Use select to pick specific fields, even within related models.
+  You cannot use both include and select at the top level of a Prisma query.
+ */
 
 router.get("/:zapId", authMiddleware, async (req, res) => {
   //@ts-ignore
@@ -117,6 +127,32 @@ router.get("/:zapId", authMiddleware, async (req, res) => {
   return res.json({
     zap,
   });
+});
+
+router.delete("/:zapId", authMiddleware, async (req, res) => {
+  const id = req.params.zapId;
+
+  try {
+    const isZapExists = await prismaClient.zap.findFirst({
+      where: {
+        id,
+      },
+    });
+
+    if (!isZapExists) {
+      return res.status(404).json({ message: "Zap doesn't exist" });
+    }
+
+    await prismaClient.zap.delete({
+      where: {
+        id,
+      },
+    });
+
+    return res.status(200).json({ message: "Zap deleted successfully" });
+  } catch (error) {
+    console.log("Error deleting zap :", error);
+  }
 });
 
 export const zapRouter = router;

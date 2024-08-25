@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "tsc -b && node dist/index.js"
+    "dev": "tsc -b && node dist/index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "kafkajs": "^2.2.4"
+    "dotenv": "^16.4.5",
+    "kafkajs": "^2.2.4",
+    "resend": "^4.0.0"
   }
 }

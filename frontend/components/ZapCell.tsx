@@ -12,7 +12,9 @@ export const ZapCell = ({
       <div className="flex text-xl">
         <div className="font-bold">{index}. </div>
         <div>{name}</div>
+        
       </div>
+     
     </div>
   );
 };

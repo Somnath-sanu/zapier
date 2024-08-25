@@ -1,5 +1,10 @@
+require("dotenv").config();
+
 import { PrismaClient } from "@prisma/client";
+import { JsonObject } from "@prisma/client/runtime/library";
 import { Kafka } from "kafkajs";
+import { parse } from "./parser";
+import { sendEmail } from "./email";
 
 const TOPIC_NAME = "zap-events";
 const client = new PrismaClient();
@@ -13,6 +18,9 @@ async function main() {
   const consumer = kafka.consumer({ groupId: "main-worker" });
   await consumer.connect();
 
+  const producer = kafka.producer();
+  await producer.connect();
+
   await consumer.subscribe({ topic: TOPIC_NAME, fromBeginning: true });
 
   await consumer.run({
@@ -22,10 +30,71 @@ async function main() {
 
     eachMessage: async ({ topic, partition, message }) => {
       console.log({
+        topic,
         partition,
         offset: message.offset,
         value: message.value?.toString(),
       });
+
+      const parsedValue = JSON.parse(message.value?.toString()!);
+      const zapRunId = parsedValue.zapRunId;
+      const stage = parsedValue.stage;
+
+      //? no we need to find the zap associated with the zapRunId
+
+      const zapRunDetails = await client.zapRun.findFirst({
+        where: {
+          id: zapRunId,
+        },
+        include: {
+          zap: {
+            include: {
+              trigger: true,
+              actions: true,
+            },
+          },
+        },
+      });
+
+      const currentAction = zapRunDetails?.zap.actions.find(
+        (x) => x.sortingOrder === stage
+      );
+
+      if (!currentAction) {
+        console.log("Current action not found?");
+        return;
+      }
+
+      const zapRunMetadata = zapRunDetails?.metadata;
+
+      if (currentAction.actionId === "email") {
+        //* parse("my name is {comment.name} address is {comment.address}" , { comment: { name : "sanu" , address: "sanu@gmail.com"} })
+
+        // console.log("Sending out an email");
+        const body = parse(
+          (currentAction.metadata as JsonObject)?.body as string,
+          zapRunMetadata
+        );
+        const to = parse(
+          (currentAction.metadata as JsonObject)?.email as string,
+          zapRunMetadata
+        );
+        console.log(`Sending out email to ${to} body is ${body}`);
+        await sendEmail(to, body);
+      }
+
+      if (currentAction.actionId === "sol") {
+        const amount = parse(
+          (currentAction.metadata as JsonObject)?.amount as string,
+          zapRunMetadata
+        );
+        const address = parse(
+          (currentAction.metadata as JsonObject)?.address as string,
+          zapRunMetadata
+        );
+        console.log(`Sending out SOL of ${amount} to address ${address}`);
+        // await sendSol(address, amount);
+      }
 
       await new Promise((res) => setTimeout(res, 5000));
 
@@ -34,7 +103,23 @@ async function main() {
       // to fix that we need -> manual acknowledgement
       //offset -> id of an message (indexes like)
 
-      console.log("Processing Done");
+      // console.log("Processing Done");
+
+      const lastStage = (zapRunDetails?.zap.actions.length || 1) - 1;
+
+      if (lastStage !== stage) {
+        await producer.send({
+          topic: TOPIC_NAME,
+          messages: [
+            {
+              value: JSON.stringify({
+                stage: stage + 1,
+                zapRunId,
+              }),
+            },
+          ],
+        });
+      }
 
       await consumer.commitOffsets([
         {

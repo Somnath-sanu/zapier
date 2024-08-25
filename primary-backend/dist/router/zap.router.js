@@ -36,6 +36,7 @@ router.post("/", middleware_1.authMiddleware, (req, res) => __awaiter(void 0, vo
                         create: parsedData.data.actions.map((x, index) => ({
                             actionId: x.availableActionId,
                             sortingOrder: index,
+                            metadata: x.actionMetadata,
                         })),
                     },
                 },
@@ -71,7 +72,9 @@ router.get("/", middleware_1.authMiddleware, (req, res) => __awaiter(void 0, voi
         where: {
             userId: id,
         },
-        include: {
+        select: {
+            createdAt: true,
+            id: true,
             actions: {
                 include: {
                     type: true,
@@ -83,11 +86,19 @@ router.get("/", middleware_1.authMiddleware, (req, res) => __awaiter(void 0, voi
                 },
             },
         },
+        orderBy: {
+            createdAt: "desc",
+        },
     });
     return res.json({
         zaps,
     });
 }));
+/**
+ * Use include to fetch related models with all fields.
+  Use select to pick specific fields, even within related models.
+  You cannot use both include and select at the top level of a Prisma query.
+ */
 router.get("/:zapId", middleware_1.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     //@ts-ignore
     const id = req.id;
@@ -113,5 +124,27 @@ router.get("/:zapId", middleware_1.authMiddleware, (req, res) => __awaiter(void 
     return res.json({
         zap,
     });
+}));
+router.delete("/:zapId", middleware_1.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const id = req.params.zapId;
+    try {
+        const isZapExists = yield db_1.prismaClient.zap.findFirst({
+            where: {
+                id,
+            },
+        });
+        if (!isZapExists) {
+            return res.status(404).json({ message: "Zap doesn't exist" });
+        }
+        yield db_1.prismaClient.zap.delete({
+            where: {
+                id,
+            },
+        });
+        return res.status(200).json({ message: "Zap deleted successfully" });
+    }
+    catch (error) {
+        console.log("Error deleting zap :", error);
+    }
 }));
 exports.zapRouter = router;
